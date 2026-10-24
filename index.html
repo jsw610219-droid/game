@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>개념 짝 맞추기</title>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#F6F3FC; --ink:#3F3752; --main:#9A83D6; --ok:#5DB98A; --line:#E3DCF3; }
+  *{box-sizing:border-box}
+  /* 예쁜 스크롤 막대 */
+  ::-webkit-scrollbar{width:12px;height:12px}
+  ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+  ::-webkit-scrollbar-button{display:none;width:0;height:0}
+  ::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--main) 45%,#fff);border:3px solid transparent;border-radius:99px;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background-color:color-mix(in srgb,var(--main) 75%,#fff)}
+  @supports not selector(::-webkit-scrollbar){ *{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--main) 45%,#fff) transparent} }
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:'Gowun Dodum',sans-serif;display:flex;justify-content:center;padding:22px 16px 50px}
+  .wrap{width:100%;max-width:880px;text-align:center}
+  .std{display:inline-block;background:#fff;border:2px solid var(--line);border-radius:999px;padding:3px 14px;font-size:14px}
+  h1{font-size:clamp(26px,4.5vw,40px);margin:10px 0 4px}
+  .sub{opacity:.7;margin:0 0 14px}
+  .stats{display:flex;gap:10px;justify-content:center;margin-bottom:16px}
+  .stats span{background:#fff;border:2px solid var(--line);border-radius:999px;padding:4px 16px;font-size:18px}
+  .board{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .cell{perspective:800px;aspect-ratio:4/3;cursor:pointer}
+  .in{position:relative;width:100%;height:100%;transition:transform .45s;transform-style:preserve-3d}
+  .cell.open .in,.cell.done .in{transform:rotateY(180deg)}
+  .face{position:absolute;inset:0;backface-visibility:hidden;border-radius:16px;display:grid;place-items:center;padding:8px;word-break:keep-all;line-height:1.35}
+  .back{background:var(--main);color:#fff;font-size:40px;box-shadow:0 6px 14px rgba(154,131,214,.35)}
+  .front{background:#fff;border:3px solid var(--line);transform:rotateY(180deg);font-size:clamp(13px,1.9vw,17px)}
+  .front.term{font-size:clamp(17px,2.6vw,26px);font-weight:700;color:var(--main)}
+  .cell.done .front{border-color:var(--ok);background:#EAF7F0;animation:shine .6s}
+  @keyframes shine{50%{box-shadow:0 0 0 8px rgba(93,185,138,.35)}}
+  .result{display:none;background:#fff;border:3px solid var(--main);border-radius:24px;padding:20px;margin-top:20px}
+  .result.show{display:block}
+  .stars{font-size:52px}
+  table{width:100%;border-collapse:collapse;margin:12px 0;text-align:left}
+  td{border-bottom:1px solid var(--line);padding:8px}
+  td:first-child{font-weight:700;color:var(--main);width:32%}
+  button.again{font:inherit;font-size:20px;border:0;border-radius:999px;background:var(--main);color:#fff;padding:12px 36px;cursor:pointer;margin-top:14px}
+  @media (max-width:560px){ .board{grid-template-columns:repeat(2,1fr)} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="std" id="std"></span>
+  <h1 id="title">🎮 개념 짝 맞추기</h1>
+  <p class="sub">카드 두 장을 뒤집어 <b>개념</b>과 <b>뜻</b>을 짝지어요!</p>
+  <div class="stats"><span>⏱ <b id="time">0</b>초</span><span>🔄 <b id="moves">0</b>번</span><span>✅ <b id="got">0</b> / <b id="all">0</b></span></div>
+  <div class="board" id="board"></div>
+  <div class="result" id="result"></div>
+</div>
+
+<script>
+  /* ===== ✏️ 개념과 뜻은 pairs 에서 바꿔요 ([개념, 뜻]) ===== */
+  const DATA = /*DATA*/{"code":"9도01-02","t":"도덕적 인격","text":"일상에서 발생하는 부도덕한 행동의 여러 원인을 분석하고, 도덕적 인격이 갖추어야 할 특성들을 파악하여 이를 내면화하는 의지를 기른다.","q":"내 주변에서 훌륭한 성품을 지닌 사람은 누구인가요? 왜 그렇게 생각했나요?","pairs":[["도덕적 무지","무엇이 옳은지 몰라서 잘못을 저지르는 것"],["도덕적 무관심","도덕 문제에 관심을 두지 않는 태도"],["의지 나약","옳은 줄 알면서도 실천할 힘이 부족한 것"],["도덕적 인격","도덕적으로 알고, 느끼고, 행동하는 특성을 고루 갖춘 사람됨"]],"video":"도덕적 실천 의지 나약","news":["방관자 효과","양심 선행","의인","청소년 봉사"],"make":"나의 도덕적 인격 성장 계획표","grade":"중학교"}/*END*/;
+
+  const $ = id => document.getElementById(id);
+  const safe = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  document.title = "개념 짝 맞추기 · " + DATA.t;
+  $("std").textContent = `🎮 [${DATA.code}] ${DATA.t}`;
+  $("std").title = DATA.text;
+  $("title").textContent = `🎮 '${DATA.t}' 개념 짝 맞추기`;
+
+  let open = [], got = 0, moves = 0, sec = 0, timer = null, lock = false;
+
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+  function start() {
+    clearInterval(timer); timer = null;
+    open = []; got = 0; moves = 0; sec = 0; lock = false;
+    $("time").textContent = 0; $("moves").textContent = 0; $("got").textContent = 0; $("all").textContent = DATA.pairs.length;
+    $("result").className = "result";
+    const cards = shuffle(DATA.pairs.flatMap((p, i) => [{ i, kind: "term", txt: p[0] }, { i, kind: "mean", txt: p[1] }]));
+    $("board").innerHTML = cards.map(c => `<div class="cell" data-i="${c.i}" tabindex="0" role="button" aria-label="카드 뒤집기">
+      <div class="in"><div class="face back">?</div><div class="face front ${c.kind}">${safe(c.txt)}</div></div></div>`).join("");
+  }
+
+  function flip(cell) {
+    if (lock || cell.classList.contains("open") || cell.classList.contains("done")) return;
+    if (!timer) timer = setInterval(() => $("time").textContent = ++sec, 1000);
+    cell.classList.add("open"); open.push(cell);
+    if (open.length < 2) return;
+    moves++; $("moves").textContent = moves;
+    const [a, b] = open;
+    if (a.dataset.i === b.dataset.i) {
+      a.classList.replace("open", "done"); b.classList.replace("open", "done"); open = [];
+      got++; $("got").textContent = got;
+      if (got === DATA.pairs.length) finish();
+    } else {
+      lock = true;
+      setTimeout(() => { a.classList.remove("open"); b.classList.remove("open"); open = []; lock = false; }, 1000);
+    }
+  }
+
+  function finish() {
+    clearInterval(timer);
+    const n = DATA.pairs.length, stars = moves <= n + 1 ? 3 : moves <= n * 2 ? 2 : 1;
+    // 결과를 이 기기에 남겨요 (🔐 관리자 대시보드에서 봐요)
+    try {
+      const list = JSON.parse(localStorage.getItem(ADMIN.key) || "[]");
+      list.push({ sec: sec + "초", moves: moves + "번", stars: "⭐".repeat(stars), at: Date.now() });
+      localStorage.setItem(ADMIN.key, JSON.stringify(list));
+    } catch (e) {}
+    $("result").innerHTML = `<div class="stars">${"⭐".repeat(stars)}${"☆".repeat(3 - stars)}</div>
+      <p style="font-size:20px;margin:4px 0">${sec}초, ${moves}번 만에 모두 맞췄어요!</p>
+      <table>${DATA.pairs.map(p => `<tr><td>${safe(p[0])}</td><td>${safe(p[1])}</td></tr>`).join("")}</table>
+      <button class="again" id="again">다시 하기</button>`;
+    $("result").className = "result show";
+    $("again").onclick = start;
+    $("result").scrollIntoView({ behavior: "smooth" });
+  }
+
+  $("board").onclick = e => { const c = e.target.closest(".cell"); if (c) flip(c); };
+  $("board").onkeydown = e => { if (e.key === "Enter" || e.key === " ") { const c = e.target.closest(".cell"); if (c) { e.preventDefault(); flip(c); } } };
+  // 🔐 관리자 대시보드에 보일 기록
+  const ADMIN = { key: "game.results." + DATA.code, title: "개념 짝 맞추기",
+    cols: [["sec", "걸린 시간"], ["moves", "뒤집은 횟수"], ["stars", "별"], ["at", "끝낸 시각"]] };
+  start();
+</script>
+<!-- ===== 🔐 관리자 대시보드 (처음 비밀번호 1234 · 대시보드에서 바꿀 수 있어요) =====
+     지금은 이 기기에 저장된 기록만 보여요. 4단계에서 파이어스토어를 연결하면 모든 학생 기록이 모여요. -->
+<style>
+  .adm-btn{position:fixed;top:12px;right:12px;z-index:50;font:inherit;font-size:14px;color:var(--ink);background:#fff;border:2px solid var(--line);border-radius:999px;padding:5px 14px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .adm-btn:hover{border-color:var(--main)}
+  .adm{position:fixed;inset:0;z-index:60;background:rgba(40,30,30,.35);display:flex;align-items:flex-start;justify-content:center;padding:40px 12px;overflow:auto}
+  .adm[hidden]{display:none}
+  .adm-in{background:#fff;color:var(--ink);border-radius:22px;width:100%;max-width:900px;padding:20px 22px;box-shadow:0 20px 50px rgba(0,0,0,.2)}
+  .adm-h{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .adm-h h2{margin:0;font-size:22px;flex:1}
+  .adm-b{white-space:nowrap;font:inherit;font-size:14px;color:var(--ink);border:2px solid var(--line);background:#fff;border-radius:999px;padding:5px 14px;cursor:pointer}
+  .adm-b.main{background:var(--main);border-color:var(--main);color:#fff}
+  .adm-b.warn:hover{border-color:#D9534F;color:#D9534F}
+  .adm-in input{font:inherit;font-size:16px;border:2px solid var(--line);border-radius:12px;padding:8px 12px;width:auto;flex:1 1 150px;min-width:0}
+  .adm-in input:focus{outline:none;border-color:var(--main)}
+  .adm-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  .adm-err{color:#D9534F;font-size:14px;min-height:20px;margin:6px 0 0}
+  .adm-ok{color:#3FAE6F}
+  .adm-stat{display:inline-block;background:color-mix(in srgb,var(--main) 12%,#fff);border-radius:14px;padding:6px 14px;margin-right:6px}
+  .adm-stat b{font-size:20px}
+  .adm-wrap{overflow-x:auto;border:2px solid var(--line);border-radius:14px;margin:12px 0}
+  .adm-in table{width:100%;border-collapse:collapse;font-size:14px;min-width:560px}
+  .adm-in th,.adm-in td{border-bottom:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top;word-break:keep-all;overflow-wrap:anywhere}
+  .adm-in th{background:color-mix(in srgb,var(--main) 8%,#fff);white-space:nowrap}
+  .adm-in tr:last-child td{border-bottom:0}
+  .adm-del{white-space:nowrap;font:inherit;font-size:12px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:1px 8px;cursor:pointer}
+  .adm-pw{background:color-mix(in srgb,var(--main) 6%,#fff);border-radius:14px;padding:10px 14px;margin-top:14px}
+  .adm-pw h3{margin:0 0 4px;font-size:16px}
+  @media print{.adm-btn,.adm{display:none !important}}
+</style>
+<button class="adm-btn" id="admBtn" type="button">🔐 관리자</button>
+<div class="adm" id="adm" hidden><div class="adm-in" id="admIn" role="dialog" aria-label="관리자 대시보드"></div></div>
+<script>
+(() => {
+  // ADMIN = { key: 기록이 저장된 이름, title: 제목, cols: [[칸 이름, 보이는 이름], …], onChange: 기록을 지운 뒤 할 일 }
+  const PW_KEY = "admin.pw." + DATA.code, DEFAULT_PW = "1234";
+  const $a = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const getPw = () => { try { return localStorage.getItem(PW_KEY) || DEFAULT_PW; } catch (e) { return DEFAULT_PW; } };
+  const rows = () => { try { return JSON.parse(localStorage.getItem(ADMIN.key) || "[]"); } catch (e) { return []; } };
+  const save = list => { try { localStorage.setItem(ADMIN.key, JSON.stringify(list)); } catch (e) {} ADMIN.onChange && ADMIN.onChange(); };
+  const cell = (r, k) => k === "at" ? (r.at ? new Date(r.at).toLocaleString("ko-KR") : "") : Array.isArray(r[k]) ? r[k].join(", ") : (r[k] ?? "");
+  let open = false;
+
+  function show(html) { $a("admIn").innerHTML = html; $a("adm").hidden = false; open = true; }
+  function close() { $a("adm").hidden = true; open = false; }
+  const head = t => `<div class="adm-h"><h2>${t}</h2><button class="adm-b" id="admX" type="button">✕ 닫기</button></div>`;
+
+  function login() {
+    show(head("🔐 관리자 로그인") + `
+      <p style="margin:0 0 6px">관리자 비밀번호를 넣어 주세요.</p>
+      <div class="adm-row"><input type="password" id="admPw" placeholder="비밀번호" autocomplete="off"><button class="adm-b main" id="admGo" type="button">들어가기</button></div>
+      <p class="adm-err" id="admErr"></p>`);
+    $a("admPw").focus();
+    const go = () => $a("admPw").value === getPw() ? dash() : ($a("admErr").textContent = "비밀번호가 맞지 않아요.");
+    $a("admGo").onclick = go;
+    $a("admPw").onkeydown = e => { if (e.key === "Enter") go(); };
+  }
+
+  function dash() {
+    const list = rows(), view = list.map((r, i) => ({ r, i })).reverse();
+    show(head("📊 관리자 대시보드 · " + esc(ADMIN.title)) + `
+      <div><span class="adm-stat">기록 <b>${list.length}</b>개</span><span style="font-size:13px;opacity:.65">지금은 이 기기에 저장된 기록만 보여요</span></div>
+      ${list.length ? `<div class="adm-wrap"><table><thead><tr><th>#</th>${ADMIN.cols.map(c => `<th>${esc(c[1])}</th>`).join("")}<th></th></tr></thead><tbody>
+        ${view.map((v, n) => `<tr><td>${list.length - n}</td>${ADMIN.cols.map(c => `<td>${esc(cell(v.r, c[0]))}</td>`).join("")}<td><button class="adm-del" data-i="${v.i}" type="button">지우기</button></td></tr>`).join("")}
+      </tbody></table></div>` : `<p style="opacity:.6;margin:14px 0">아직 기록이 없어요.</p>`}
+      <div class="adm-row">
+        <button class="adm-b main" id="admCsv" type="button" ${list.length ? "" : "disabled"}>⬇️ 엑셀(CSV)로 받기</button>
+        <button class="adm-b warn" id="admClear" type="button" ${list.length ? "" : "disabled"}>🗑 모두 지우기</button>
+        <button class="adm-b" id="admLock" type="button">🔒 잠그기</button>
+      </div>
+      <div class="adm-pw"><h3>🔑 비밀번호 바꾸기</h3>
+        <div class="adm-row"><input type="password" id="admOld" placeholder="지금 비밀번호" autocomplete="off"><input type="password" id="admNew" placeholder="새 비밀번호 (4자 이상)" autocomplete="off"><input type="password" id="admNew2" placeholder="새 비밀번호 한 번 더" autocomplete="off"><button class="adm-b main" id="admChange" type="button">바꾸기</button></div>
+        <p class="adm-err" id="admPwMsg"></p></div>`);
+    $a("admLock").onclick = close;
+    $a("admIn").querySelectorAll(".adm-del").forEach(b => b.onclick = () => {
+      if (!confirm("이 기록을 지울까요?")) return;
+      const l = rows(); l.splice(+b.dataset.i, 1); save(l); dash();
+    });
+    $a("admClear").onclick = () => { if (confirm("기록을 모두 지울까요? 되돌릴 수 없어요.")) { save([]); dash(); } };
+    $a("admCsv").onclick = () => {
+      const q = v => `"${String(v).replace(/"/g, '""')}"`;
+      const csv = [ADMIN.cols.map(c => q(c[1])).join(",")].concat(rows().map(r => ADMIN.cols.map(c => q(cell(r, c[0]))).join(","))).join("\r\n");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+      a.download = `${ADMIN.title}_${DATA.code}.csv`; document.body.appendChild(a); a.click(); a.remove();
+    };
+    $a("admChange").onclick = () => {
+      const m = $a("admPwMsg"), o = $a("admOld").value, n = $a("admNew").value, n2 = $a("admNew2").value;
+      m.className = "adm-err";
+      if (o !== getPw()) return m.textContent = "지금 비밀번호가 맞지 않아요.";
+      if (n.length < 4) return m.textContent = "새 비밀번호는 4자 이상으로 해 주세요.";
+      if (n !== n2) return m.textContent = "새 비밀번호 두 칸이 서로 달라요.";
+      try { localStorage.setItem(PW_KEY, n); } catch (e) {}
+      m.className = "adm-err adm-ok"; m.textContent = "✓ 비밀번호를 바꿨어요. 다음부터 새 비밀번호로 들어와요.";
+      ["admOld", "admNew", "admNew2"].forEach(k => $a(k).value = "");
+    };
+  }
+
+  $a("admBtn").onclick = login;
+  $a("adm").onclick = e => { if (e.target.id === "adm" || e.target.id === "admX") close(); };
+  document.addEventListener("keydown", e => { if (open && e.key === "Escape") close(); });
+})();
+</script>
+</body>
+</html>
